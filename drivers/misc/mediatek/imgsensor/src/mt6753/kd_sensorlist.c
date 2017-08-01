@@ -1926,7 +1926,7 @@ inline static int  adopt_CAMERA_HW_FeatureControl(void *pBuf)
     if ((g_NewSensorExpGain.uISPGainDelayFrame != 0xFF) && (g_NewSensorExpGain.uISPGainDelayFrame != 0)) {
         g_NewSensorExpGain.uISPGainDelayFrame--;
     }
-
+    spin_unlock(&kdsensor_drv_lock);
 
 
      break;

@@ -2815,15 +2815,14 @@ buffhds_first_it:
 
 	/* Prepare inquiryString */
 	i = get_default_bcdDevice();
-	// WLD start bid 842:modify the vendor name and product name based the requirement
 	snprintf(common->inquiry_string, sizeof common->inquiry_string,
-		 "%-8s%-16s%04x", cfg->vendor_name ?: "XOLO",
+		 "%-8s%-16s%04x", cfg->vendor_name ?: "Linux",
 		 /* Assume product name dependent on the first LUN */
 		 cfg->product_name ?: (common->luns->cdrom
-				     ? "BLACK-1X-Stor Gadget"
-				     : "BLACK-1X Gadget"),
+				     ? "File-Stor Gadget"
+				     : "File-CD Gadget"),
 		 i);
-	// WLD end bid 842
+
 	/*
 	 * Some peripheral controllers are known not to be able to
 	 * halt bulk endpoints correctly.  If one of them is present,

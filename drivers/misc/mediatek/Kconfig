@@ -395,6 +395,12 @@ config CUSTOM_KERNEL_FLASHLIGHT
 	help
 	  Kernel space cameara flashlight driver. You can use this driver
 	  choose cameara flashlight type.
+
+config CUSTOM_KERNEL_LENS
+	string "CUSTOM_KERNEL_LENS"
+	help
+	  To choose kernel CUSTOM_KERNEL_LENS
+
 config CUSTOM_KERNEL_EXTMD
 	string "CUSTOM_KERNEL_EXTMD"
 	default ""

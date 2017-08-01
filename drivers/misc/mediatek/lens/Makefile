@@ -5,6 +5,21 @@ include $(srctree)/drivers/misc/mediatek/Makefile.custom
 
 #obj-y += sensordriver/sensordrive_lens.o
 
+project_name:=$(shell echo $(CONFIG_ARCH_MTK_PROJECT))
+ifneq ($(project_name),)
+platform=$(shell echo $(MTK_PLATFORM) | tr [A-Z] [a-z])
+
+ifneq ($(strip $(CUSTOM_KERNEL_LENS)),)
+CONFIG_CUSTOM_KERNEL_LENS:=$(CUSTOM_KERNEL_LENS)
+endif
+
+custom_kernel_lens:= $(addprefix $(platform)/,$(addsuffix /, $(shell echo $(CONFIG_CUSTOM_KERNEL_LENS))))
+
+$(info "wyl custom_kernel_lens:$(custom_kernel_lens)")
+obj-y += $(custom_kernel_lens)
+
+else
+
 ifeq ($(CONFIG_ARCH_MT8127),y)
 		obj-$(CONFIG_MTK_LENS_FM50AF_SUPPORT)      += mt8127/fm50af/
 else
@@ -23,7 +38,7 @@ else
 		obj-$(CONFIG_MTK_LENS_DW9718AF_SUPPORT)  +=  mt6592/dw9718af/
 		obj-$(CONFIG_MTK_LENS_AK7345AF_SUPPORT)  +=  mt6592/ak7345af/
 		obj-$(CONFIG_MTK_LENS_SENSORDRIVE_SUPPORT) += mt6592/sensordrive/
-		else 
+		else
 			ifeq ($(CONFIG_ARCH_MT6582),y)
 			obj-$(CONFIG_MTK_LENS_DUMMYLENS_SUPPORT) +=  mt6582/dummy_lens/
 			obj-$(CONFIG_MTK_LENS_FM50AF_SUPPORT)    +=  mt6582/fm50af/
@@ -33,7 +48,7 @@ else
 			obj-$(CONFIG_MTK_LENS_DW9714AF_SUPPORT)  +=  mt6582/dw9714af/
 			obj-$(CONFIG_MTK_LENS_DW9714A_SUPPORT)   +=  mt6582/dw9714a/
 			obj-$(CONFIG_MTK_LENS_DW9718AF_SUPPORT)  +=  mt6582/dw9718af/
-			else 
+			else
 				ifeq ($(CONFIG_ARCH_MT6752),y)
 				obj-$(CONFIG_MTK_LENS_DUMMYLENS_SUPPORT) += mt6752/dummy_lens/
 				obj-$(CONFIG_MTK_LENS_AD5820AF_SUPPORT) += mt6752/ad5820af/
@@ -116,5 +131,4 @@ else
 	endif
 endif
 
-
-
+endif

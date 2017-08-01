@@ -19,6 +19,10 @@ ifeq ($(CONFIG_TOUCHSCREEN_MTK_MAX1187X),y)
 obj-y	+=  max1187x/
 endif
 
+ifeq ($(CONFIG_TOUCHSCREEN_MTK_GSL3670_K960),y)
+obj-y	+=  GSL3670_K960/
+endif
+
 ifeq ($(CONFIG_TOUCHSCREEN_MTK_GT9XX),y)
 obj-y	+=  GT9XX/
 endif

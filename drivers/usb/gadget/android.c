@@ -79,10 +79,9 @@ extern BOOTMODE g_boot_mode;
 #endif
 
 /* Default manufacturer and product string , overridden by userspace */
-// WLD start bid 842:modify the vendor name and product name based the requirement
-#define MANUFACTURER_STRING "XOLO"
-#define PRODUCT_STRING "XOLO BLACK-1X"
-// WLD end bid 842
+#define MANUFACTURER_STRING "MediaTek"
+#define PRODUCT_STRING "MT65xx Android Phone"
+
 
 //#define USB_LOG "USB"
 

@@ -320,7 +320,7 @@ static struct usb_descriptor_header *ss_ptp_descs[] = {
 
 static struct usb_string mtp_string_defs[] = {
 	/* Naming interface "MTP" so libmtp will recognize us */
-	[INTERFACE_STRING_INDEX].s	= "XOLO BLACK-1X",
+	[INTERFACE_STRING_INDEX].s	= "MTP",
 	{  },	/* end of list */
 };
 

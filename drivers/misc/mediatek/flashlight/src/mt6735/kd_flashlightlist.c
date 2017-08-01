@@ -597,7 +597,7 @@ static int compat_arg_struct_kernel_to_user32(
 
 static long my_ioctl_compat(struct file *filep, unsigned int cmd, unsigned long arg)
 {
-    logI("flash my_ioctl_compat2 line=%d cmd=0x%x(nr=%d) arg=%ld \n",__LINE__,cmd,_IOC_NR(cmd),arg);
+    logI("flash my_ioctl_compat2 line=%d cmd=%d arg=%ld \n",__LINE__,cmd,arg);
 	int err;
 	//int copyRet;
 	kdStrobeDrvArg* pUObj;

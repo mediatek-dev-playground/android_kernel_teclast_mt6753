@@ -51,7 +51,7 @@
 // ANDROID_LOG_DEBUG
 // ANDROID_LOG_VERBOSE
 
-#define TAG_NAME "[strobe]-main-"
+#define TAG_NAME "[leds_strobe.c]"
 #define PK_DBG_NONE(fmt, arg...)    do {} while (0)
 #define PK_DBG_FUNC(fmt, arg...)    pr_debug(TAG_NAME "%s: " fmt, __FUNCTION__ ,##arg)
 #define PK_WARN(fmt, arg...)        pr_warning(TAG_NAME "%s: " fmt, __FUNCTION__ ,##arg)
@@ -60,6 +60,7 @@
 #define PK_TRC_FUNC(f)              pr_debug(TAG_NAME "<%s>\n", __FUNCTION__)
 #define PK_TRC_VERBOSE(fmt, arg...) pr_debug(TAG_NAME fmt, ##arg)
 #define PK_ERROR(fmt, arg...)       pr_err(TAG_NAME "%s: " fmt, __FUNCTION__ ,##arg)
+
 
 #define DEBUG_LEDS_STROBE
 #ifdef  DEBUG_LEDS_STROBE
@@ -93,10 +94,15 @@ static DECLARE_MUTEX(g_strobeSem);
 #endif
 
 
-#define STROBE_DEVICE_ID I2C_STROBE_MAIN_SLAVE_7_BIT_ADDR
+#define STROBE_DEVICE_ID 0xC6
 
 
 static struct work_struct workTimeOut;
+
+//#define FLASH_GPIO_ENF GPIO12
+//#define FLASH_GPIO_ENT GPIO13
+
+static int g_bLtVersion=0;
 
 /*****************************************************************************
 Functions
@@ -105,9 +111,12 @@ extern int iWriteRegI2C(u8 *a_pSendData , u16 a_sizeSendData, u16 i2cId);
 extern int iReadRegI2C(u8 *a_pSendData , u16 a_sizeSendData, u8 * a_pRecvData, u16 a_sizeRecvData, u16 i2cId);
 static void work_timeOutFunc(struct work_struct *data);
 
-struct i2c_client *LM3560_i2c_client = NULL;
+static struct i2c_client *LM3642_i2c_client = NULL;
 
-struct LM3560_platform_data {
+
+
+
+struct LM3642_platform_data {
 	u8 torch_pin_enable;    // 1:  TX1/TORCH pin isa hardware TORCH enable
 	u8 pam_sync_pin_enable; // 1:  TX2 Mode The ENVM/TX2 is a PAM Sync. on input
 	u8 thermal_comp_mode_enable;// 1: LEDI/NTC pin in Thermal Comparator Mode
@@ -115,14 +124,14 @@ struct LM3560_platform_data {
 	u8 vout_mode_enable;  // 1 : Voltage Out Mode enable
 };
 
-struct LM3560_chip_data {
+struct LM3642_chip_data {
 	struct i2c_client *client;
 
 	//struct led_classdev cdev_flash;
 	//struct led_classdev cdev_torch;
 	//struct led_classdev cdev_indicator;
 
-	struct LM3560_platform_data *pdata;
+	struct LM3642_platform_data *pdata;
 	struct mutex lock;
 
 	u8 last_flag;
@@ -130,97 +139,110 @@ struct LM3560_chip_data {
 };
 
 /* i2c access*/
-
-static int LM3560_write_reg(struct i2c_client *client, u8 reg, u8 val)
+/*
+static int LM3642_read_reg(struct i2c_client *client, u8 reg,u8 *val)
 {
-	int ret=0;
-	int retry_fl = 3;
-	struct LM3560_chip_data *chip = i2c_get_clientdata(client);
-
-	PK_DBG("0x%02x 0x%02x\n",reg,val);
+	int ret;
+	struct LM3642_chip_data *chip = i2c_get_clientdata(client);
 
 	mutex_lock(&chip->lock);
-	while (retry_fl > 0)
-	{
-		ret =  i2c_smbus_write_byte_data(client, reg, val);
-		if (ret < 0)
-		{
-			PK_ERR("failed writting at 0x%02x to 0x%02x,ret=%d, try_time=%d\n", reg,val,ret,retry_fl);
-			retry_fl--;
-		}
-		else
-			break;
-	}
+	ret = i2c_smbus_read_byte_data(client, reg);
 	mutex_unlock(&chip->lock);
 
+	if (ret < 0) {
+		PK_ERR("failed reading at 0x%02x error %d\n",reg, ret);
+		return ret;
+	}
+	*val = ret&0xff;
+
+	return 0;
+}*/
+
+static int LM3642_write_reg(struct i2c_client *client, u8 reg, u8 val)
+{
+	int ret=0;
+	struct LM3642_chip_data *chip = i2c_get_clientdata(client);
+
+	mutex_lock(&chip->lock);
+	ret =  i2c_smbus_write_byte_data(client, reg, val);
+	mutex_unlock(&chip->lock);
+
+	if (ret < 0)
+		PK_ERR("failed writting at 0x%02x\n", reg);
 	return ret;
 }
 
-static int LM3560_read_reg(struct i2c_client *client, u8 reg)
+static int LM3642_read_reg(struct i2c_client *client, u8 reg)
 {
 	int val=0;
-	struct LM3560_chip_data *chip = i2c_get_clientdata(client);
+	struct LM3642_chip_data *chip = i2c_get_clientdata(client);
 
 	mutex_lock(&chip->lock);
 	val =  i2c_smbus_read_byte_data(client, reg);
 	mutex_unlock(&chip->lock);
 
+
 	return val;
 }
 
-static int LM3560_chip_init(struct LM3560_chip_data *chip)
+
+
+
+static int LM3642_chip_init(struct LM3642_chip_data *chip)
 {
+
+
 	return 0;
 }
 
-static int LM3560_probe(struct i2c_client *client,
+static int LM3642_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
-	struct LM3560_chip_data *chip;
-	struct LM3560_platform_data *pdata = client->dev.platform_data;
+	struct LM3642_chip_data *chip;
+	struct LM3642_platform_data *pdata = client->dev.platform_data;
 
 	int err = -1;
 
-	PK_DBG("LM3560_probe start--->.\n");
+	PK_DBG("LM3642_probe start--->.\n");
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		err = -ENODEV;
-		printk(KERN_ERR  "LM3560 i2c functionality check fail.\n");
+		printk(KERN_ERR  "LM3642 i2c functionality check fail.\n");
 		return err;
 	}
 
-	chip = kzalloc(sizeof(struct LM3560_chip_data), GFP_KERNEL);
+	chip = kzalloc(sizeof(struct LM3642_chip_data), GFP_KERNEL);
 	chip->client = client;
 
 	mutex_init(&chip->lock);
 	i2c_set_clientdata(client, chip);
 
 	if(pdata == NULL){ //values are set to Zero.
-		PK_ERR("LM3560 Platform data does not exist\n");
-		pdata = kzalloc(sizeof(struct LM3560_platform_data),GFP_KERNEL);
+		PK_ERR("LM3642 Platform data does not exist\n");
+		pdata = kzalloc(sizeof(struct LM3642_platform_data),GFP_KERNEL);
 		chip->pdata  = pdata;
 		chip->no_pdata = 1;
 	}
 
 	chip->pdata  = pdata;
-	if(LM3560_chip_init(chip)<0)
+	if(LM3642_chip_init(chip)<0)
 		goto err_chip_init;
 
-	LM3560_i2c_client = client;
-	PK_DBG("LM3560 Initializing is done \n");
+	LM3642_i2c_client = client;
+	PK_DBG("LM3642 Initializing is done \n");
 
 	return 0;
 
 err_chip_init:
 	i2c_set_clientdata(client, NULL);
 	kfree(chip);
-	PK_ERR("LM3560 probe is failed \n");
+	PK_ERR("LM3642 probe is failed \n");
 	return -ENODEV;
 }
 
-static int LM3560_remove(struct i2c_client *client)
+static int LM3642_remove(struct i2c_client *client)
 {
-	struct LM3560_chip_data *chip = i2c_get_clientdata(client);
+	struct LM3642_chip_data *chip = i2c_get_clientdata(client);
 
     if(chip->no_pdata)
 		kfree(chip->pdata);
@@ -229,118 +251,140 @@ static int LM3560_remove(struct i2c_client *client)
 }
 
 
-#define LM3560_NAME "leds-LM3560"
-static const struct i2c_device_id LM3560_id[] = {
-	{LM3560_NAME, 0},
+#define LM3642_NAME "leds-LM3642"
+static const struct i2c_device_id LM3642_id[] = {
+	{LM3642_NAME, 0},
 	{}
 };
 
-static struct i2c_driver LM3560_i2c_driver = {
+static struct i2c_driver LM3642_i2c_driver = {
 	.driver = {
-		.name  = LM3560_NAME,
+		.name  = LM3642_NAME,
 	},
-	.probe	= LM3560_probe,
-	.remove   = LM3560_remove,
-	.id_table = LM3560_id,
+	.probe	= LM3642_probe,
+	.remove   = LM3642_remove,
+	.id_table = LM3642_id,
 };
 
-struct LM3560_platform_data LM3560_pdata = {0, 0, 0, 0, 0};
-static struct i2c_board_info __initdata i2c_LM3560={ I2C_BOARD_INFO(LM3560_NAME, I2C_STROBE_MAIN_SLAVE_7_BIT_ADDR), \
-													.platform_data = &LM3560_pdata,};
+struct LM3642_platform_data LM3642_pdata = {0, 0, 0, 0, 0};
+static struct i2c_board_info __initdata i2c_LM3642={ I2C_BOARD_INFO(LM3642_NAME, I2C_STROBE_MAIN_SLAVE_7_BIT_ADDR), \
+													.platform_data = &LM3642_pdata,};
 
-static int __init LM3560_init(void)
+static int __init LM3642_init(void)
 {
-	PK_DBG("LM3560_init\n");
-	//i2c_register_board_info(2, &i2c_LM3560, 1);
-	i2c_register_board_info(I2C_STROBE_MAIN_CHANNEL, &i2c_LM3560, 1);
+	printk("LM3642_init\n");
+	//i2c_register_board_info(2, &i2c_LM3642, 1);
+	i2c_register_board_info(I2C_STROBE_MAIN_CHANNEL, &i2c_LM3642, 1);
 
 
-	return i2c_add_driver(&LM3560_i2c_driver);
+	return i2c_add_driver(&LM3642_i2c_driver);
 }
 
-static void __exit LM3560_exit(void)
+static void __exit LM3642_exit(void)
 {
-	i2c_del_driver(&LM3560_i2c_driver);
+	i2c_del_driver(&LM3642_i2c_driver);
 }
 
 
-module_init(LM3560_init);
-module_exit(LM3560_exit);
+module_init(LM3642_init);
+module_exit(LM3642_exit);
 
-MODULE_DESCRIPTION("Flash driver for LM3560");
+MODULE_DESCRIPTION("Flash driver for LM3642");
 MODULE_AUTHOR("pw <pengwei@mediatek.com>");
 MODULE_LICENSE("GPL v2");
 
+int readReg(int reg)
+{
 
-static int FL_Enable(void)
+    int val;
+    val = LM3642_read_reg(LM3642_i2c_client, reg);
+    return (int)val;
+}
+
+int FL_Enable(void)
 {
 	char buf[2];
-	int val;
-
-	/*
-		the main led is LXCL-PWF4, which support max torch current 500mA, max pulse current 1500mA, 
-		note that the LM3560 support max torch is 250mA, max flash current is 1000mA
-	*/
-	
+//	char bufR[2];
     if(g_duty<0)
         g_duty=0;
-    else if(g_duty>15)
-        g_duty=15;
+    else if(g_duty>16)
+        g_duty=16;
+  if(g_duty<=2)
+  {
+        int val;
+        if(g_bLtVersion==1)
+        {
+            if(g_duty==0)
+                val=3;
+            else if(g_duty==1)
+                val=5;
+            else //if(g_duty==2)
+                val=7;
+        }
+        else
+        {
+            if(g_duty==0)
+                val=1;
+            else if(g_duty==1)
+                val=2;
+            else //if(g_duty==2)
+                val=3;
+        }
+        buf[0]=9;
+        buf[1]=val<<4;
+        //iWriteRegI2C(buf , 2, STROBE_DEVICE_ID);
+        LM3642_write_reg(LM3642_i2c_client, buf[0], buf[1]);
 
-	PK_DBG("FL_Enable duty=%d\n",g_duty);
+        buf[0]=10;
+        buf[1]=0x02;
+        //iWriteRegI2C(buf , 2, STROBE_DEVICE_ID);
+        LM3642_write_reg(LM3642_i2c_client, buf[0], buf[1]);
+  }
+  else
+  {
+    int val;
+    val = (g_duty-1);
+    buf[0]=9;
+	  buf[1]=val;
+	  //iWriteRegI2C(buf , 2, STROBE_DEVICE_ID);
+	  LM3642_write_reg(LM3642_i2c_client, buf[0], buf[1]);
 
-	if(g_duty<=3)
-	{
-		//torch
-		val = g_duty<<1; //0123====>0246, so the current is 31,93,156,218mA
+	  buf[0]=10;
+	  buf[1]=0x03;
+	  //iWriteRegI2C(buf , 2, STROBE_DEVICE_ID);
+	  LM3642_write_reg(LM3642_i2c_client, buf[0], buf[1]);
+  }
+	PK_DBG(" FL_Enable line=%d\n",__LINE__);
 
-		buf[0]=0xA0;
-		buf[1]=val;
-		//iWriteRegI2C(buf , 2, STROBE_DEVICE_ID);
-		LM3560_write_reg(LM3560_i2c_client, buf[0], buf[1]);
+    readReg(0);
+	readReg(1);
+	readReg(6);
+	readReg(8);
+	readReg(9);
+	readReg(0xa);
+	readReg(0xb);
 
-		buf[0]=0x10;
-		buf[1]=0x0A;
-		//iWriteRegI2C(buf , 2, STROBE_DEVICE_ID);
-		LM3560_write_reg(LM3560_i2c_client, buf[0], buf[1]);
-	}
-	else
-	{
-		//flash
-
-		val = g_duty; //456789 10 11,12,13,14,15,so the current is 312,375,437...750,812,875,937,1000mA
-		buf[0]=0xB0;
-		buf[1]=val;
-		//writeReg(LM3560_i2c_client , 0xB0, val);
-		LM3560_write_reg(LM3560_i2c_client, buf[0], buf[1]);
-
-		buf[0]=0x10;
-		buf[1]=0x0B;
-		//writeReg(LM3560_i2c_client , 0x10, 0x0B);
-		LM3560_write_reg(LM3560_i2c_client, buf[0], buf[1]);
-	}
     return 0;
 }
 
 
 
-static int FL_Disable(void)
+int FL_Disable(void)
 {
-	char buf[2];
+		char buf[2];
 
-	PK_DBG("FL_Disable\n");
-
-	///////////////////////
-	buf[0]=0x10;
+///////////////////////
+	buf[0]=10;
 	buf[1]=0x00;
 	//iWriteRegI2C(buf , 2, STROBE_DEVICE_ID);
-	LM3560_write_reg(LM3560_i2c_client, buf[0], buf[1]);
+	LM3642_write_reg(LM3642_i2c_client, buf[0], buf[1]);
+	PK_DBG(" FL_Disable line=%d\n",__LINE__);
     return 0;
 }
 
-static int FL_dim_duty(kal_uint32 duty)
+int FL_dim_duty(kal_uint32 duty)
 {
-	PK_DBG("FL_dim_duty duty=%d\n",duty);
+	PK_DBG(" FL_dim_duty line=%d\n",__LINE__);
 	g_duty = duty;
     return 0;
 }
@@ -348,53 +392,64 @@ static int FL_dim_duty(kal_uint32 duty)
 
 
 
-static int FL_Init(void)
+int FL_Init(void)
 {
-	//int regVal0;
-	char buf[2];
+   int regVal0;
+  char buf[2];
 
-	if(mt_set_gpio_mode(GPIO_CAMERA_FLASH_EN_PIN,GPIO_CAMERA_FLASH_EN_PIN_M_GPIO)) {PK_DBG("[flashlight] set gpio mode failed!!\n");}
-	if(mt_set_gpio_dir(GPIO_CAMERA_FLASH_EN_PIN,GPIO_DIR_OUT)) {PK_DBG("[flashlight] set gpio dir failed!!\n");}
-	if(mt_set_gpio_out(GPIO_CAMERA_FLASH_EN_PIN,GPIO_OUT_ZERO)) {PK_DBG("[flashlight] set gpio failed!!\n");}
-
-	mdelay(5);
-	if(mt_set_gpio_out(GPIO_CAMERA_FLASH_EN_PIN,GPIO_OUT_ONE)) {PK_DBG("[flashlight] set gpio one failed!!\n");}
-
-	mdelay(5);
-
-	/*
-	buf[0]=0x10;
+  buf[0]=0xa;
 	buf[1]=0x0;
-	LM3560_write_reg(LM3560_i2c_client, buf[0], buf[1]);
+	//iWriteRegI2C(buf , 2, STROBE_DEVICE_ID);
+	LM3642_write_reg(LM3642_i2c_client, buf[0], buf[1]);
 
-	buf[0]=0xC0;
-	buf[1]=0x78;
-	LM3560_write_reg(LM3560_i2c_client, buf[0], buf[1]);
+	buf[0]=0x8;
+	buf[1]=0x47;
+	//iWriteRegI2C(buf , 2, STROBE_DEVICE_ID);
+	LM3642_write_reg(LM3642_i2c_client, buf[0], buf[1]);
 
-	buf[0]=0xA0;
-	buf[1]=0x12;
-	LM3560_write_reg(LM3560_i2c_client, buf[0], buf[1]);
+	buf[0]=9;
+	buf[1]=0x35;
+	//iWriteRegI2C(buf , 2, STROBE_DEVICE_ID);
+	LM3642_write_reg(LM3642_i2c_client, buf[0], buf[1]);
 
-	buf[0]=0xB0;
-	buf[1]=0x77;
-	LM3560_write_reg(LM3560_i2c_client, buf[0], buf[1]);
-	*/
-    PK_DBG("FL_Init\n");
+
+
+
+	//static int LM3642_read_reg(struct i2c_client *client, u8 reg)
+	//regVal0 = readReg(0);
+	regVal0 = LM3642_read_reg(LM3642_i2c_client, 0);
+
+	if(regVal0==1)
+	    g_bLtVersion=1;
+	else
+	    g_bLtVersion=0;
+
+
+    PK_DBG(" FL_Init regVal0=%d isLtVer=%d\n",regVal0, g_bLtVersion);
+
+
+/*
+	if(mt_set_gpio_mode(FLASH_GPIO_ENT,GPIO_MODE_00)){PK_DBG("[constant_flashlight] set gpio mode failed!! \n");}
+    if(mt_set_gpio_dir(FLASH_GPIO_ENT,GPIO_DIR_OUT)){PK_DBG("[constant_flashlight] set gpio dir failed!! \n");}
+    if(mt_set_gpio_out(FLASH_GPIO_ENT,GPIO_OUT_ZERO)){PK_DBG("[constant_flashlight] set gpio failed!! \n");}
+
+    	if(mt_set_gpio_mode(FLASH_GPIO_ENF,GPIO_MODE_00)){PK_DBG("[constant_flashlight] set gpio mode failed!! \n");}
+    if(mt_set_gpio_dir(FLASH_GPIO_ENF,GPIO_DIR_OUT)){PK_DBG("[constant_flashlight] set gpio dir failed!! \n");}
+    if(mt_set_gpio_out(FLASH_GPIO_ENF,GPIO_OUT_ZERO)){PK_DBG("[constant_flashlight] set gpio failed!! \n");}
+    */
+
+
+
+
+    PK_DBG(" FL_Init line=%d\n",__LINE__);
     return 0;
 }
 
 
-static int FL_Uninit(void)
+int FL_Uninit(void)
 {
-	//FL_Disable();
-	
-	mdelay(5);
-	if(mt_set_gpio_out(GPIO_CAMERA_FLASH_EN_PIN,GPIO_OUT_ZERO)) {PK_DBG("[flashlight] uninit set gpio failed!!\n");}
-	mdelay(5);
-
-	PK_DBG("FL_Uninit\n");
-
-	return 0;
+	FL_Disable();
+    return 0;
 }
 
 /*****************************************************************************
@@ -403,20 +458,20 @@ User interface
 
 static void work_timeOutFunc(struct work_struct *data)
 {
-	PK_DBG("ledTimeOut_callback\n");
     FL_Disable();
+    PK_DBG("ledTimeOut_callback\n");
     //printk(KERN_ALERT "work handler function./n");
 }
 
 
 
-static enum hrtimer_restart ledTimeOutCallback(struct hrtimer *timer)
+enum hrtimer_restart ledTimeOutCallback(struct hrtimer *timer)
 {
     schedule_work(&workTimeOut);
     return HRTIMER_NORESTART;
 }
 static struct hrtimer g_timeOutTimer;
-static void timerInit(void)
+void timerInit(void)
 {
   INIT_WORK(&workTimeOut, work_timeOutFunc);
 	g_timeOutTimeMs=1000; //1s
@@ -436,8 +491,7 @@ static int constant_flashlight_ioctl(unsigned int cmd, unsigned long arg)
 	ior_shift = cmd - (_IOR(FLASHLIGHT_MAGIC,0, int));
 	iow_shift = cmd - (_IOW(FLASHLIGHT_MAGIC,0, int));
 	iowr_shift = cmd - (_IOWR(FLASHLIGHT_MAGIC,0, int));
-	PK_DBG("ior=%d, iow=%d iowr=%d arg=%d\n",ior_shift, iow_shift, iowr_shift, (int)arg);
-    
+	PK_DBG("LM3642 constant_flashlight_ioctl() line=%d ior_shift=%d, iow_shift=%d iowr_shift=%d arg=%d\n",__LINE__, ior_shift, iow_shift, iowr_shift,(int)arg);
     switch(cmd)
     {
 
@@ -536,7 +590,7 @@ static int constant_flashlight_open(void *pArg)
 
 static int constant_flashlight_release(void *pArg)
 {
-    PK_DBG("constant_flashlight_release\n");
+    PK_DBG(" constant_flashlight_release\n");
 
     if (strobe_Res)
     {
